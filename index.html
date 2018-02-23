@@ -116,6 +116,7 @@
         const drawStillImage = () => {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
+            context.clearRect(0, 0, canvas.width, canvas.height);
             context.drawImage(video, 0, 0, canvas.width, canvas.height);
             return Promise.resolve();
         }
