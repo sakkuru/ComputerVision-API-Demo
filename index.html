@@ -1,0 +1,152 @@
+<!DOCTYPE>
+<html>
+
+<head>
+    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/bootswatch/3.3.7/united/bootstrap.min.css" />
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <h1>Computer Vision API DEMO</h1>
+    <div id='container'>
+        <video id='local-video' autoplay></video>
+        <canvas id='still'></canvas>
+        <div id="results">
+            <table>
+                <tr id='caption'>
+                    <td class='feature-name'>Caption: </td>
+                    <td class='value'></td>
+                </tr>
+                <tr id='gender'>
+                    <td class='feature-name'>Gender: </td>
+                    <td class='value'></td>
+                </tr>
+                <tr id='age'>
+                    <td class='feature-name'>Age: </td>
+                    <td class='value'></td>
+                </tr>
+                <tr id='categories'>
+                    <td class='feature-name'>Categories: </td>
+                    <td class='value'></td>
+                </tr>
+                <tr id='tags'>
+                    <td class='feature-name'>Tags: </td>
+                    <td class='value'></td>
+                </tr>
+                <tr id='raw'>
+                    <td class='feature-name'>Raw</td>
+                    <td class='value'></td>
+                </tr>
+            </table>
+            <div id="caption"></div>
+            <div id="tags"></div>
+            <div id="raw"></div>
+        </div>
+    </div>
+
+    <script>
+        const video = $('video')[0];
+        const canvas = $('#still')[0];
+        const context = canvas.getContext('2d');
+        const endpoint = 'https://southeastasia.api.cognitive.microsoft.com/vision/v1.0/analyze';
+        const params = 'visualFeatures=Categories,Tags,Description,Faces&language=en';
+
+        const callAPIWithImageData = (blob) => {
+            const request = new XMLHttpRequest();
+            request.open('POST', endpoint + '?' + params);
+            request.setRequestHeader("Content-Type", 'application/octet-stream');
+            request.setRequestHeader("Ocp-Apim-Subscription-Key", "0c4ecaa4b36c415681046f775568665e");
+
+            request.onreadystatechange = () => {
+                switch (request.readyState) {
+                    case 4:
+                        if (request.status === 200) {
+                            $("#raw .value").text(request.responseText);
+                            const res = JSON.parse(request.responseText);
+                            console.log(res)
+
+                            $("#caption .value").text(res.description.captions[0].text);
+                            $("#tags .value").text("");
+                            for (let i in res['tags']) {
+                                $("#tags .value").append('<span class="tag">' + res['tags'][i].name + '</span>');
+                            }
+                            $("#categories .value").text("");
+                            for (let i in res['categories']) {
+                                $("#categories .value").append('<span class="category">' + res['categories'][i].name + '</span>' + '<span class="category-score">(' + res['categories'][i].score + ')</span>');
+                            }
+                            if (res.faces && res.faces[0]) {
+                                $("#gender .value").html('<span class="gender">' + res.faces[0].gender + '</span>');
+                                $("#age .value").html('<span class="age">' + res.faces[0].age + '</span>');
+                            }
+                            for (let i in res.faces) {
+                                const face = res.faces[i];
+                                drawFaceLandmarks(face);
+                            }
+
+                        } else {
+                            setTimeout(() => {
+                                callCognitiveAPI();
+                            }, 5000);
+                        }
+                        break;
+                }
+            };
+            request.send(blob);
+        }
+
+        const drawFaceLandmarks = (face) => {
+            if (face.faceRectangle) {
+                context.lineWidth = 7;
+                context.strokeStyle = 'red';
+                context.rect(face.faceRectangle.left, face.faceRectangle.top, face.faceRectangle.width, face.faceRectangle.height);
+                context.stroke();
+            }
+
+            if (face.faceLandmarks) {
+                context.fillStyle = "red";
+                context.fillRect(face.faceLandmarks.pupilRight.x, face.faceLandmarks.pupilRight.y, 10, 10);
+                context.fillRect(face.faceLandmarks.pupilLeft.x, face.faceLandmarks.pupilLeft.y, 10, 10);
+                context.fillRect(face.faceLandmarks.noseTip.x, face.faceLandmarks.noseTip.y, 10, 10);
+                context.fillRect(face.faceLandmarks.mouthRight.x, face.faceLandmarks.mouthRight.y, 10, 10);
+                context.fillRect(face.faceLandmarks.mouthLeft.x, face.faceLandmarks.mouthLeft.y, 10, 10);
+            }
+        }
+
+        const drawStillImage = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            return Promise.resolve();
+        }
+
+        const callCognitiveAPI = () => {
+            if (canvas.toBlob) {
+                canvas.toBlob(callAPIWithImageData);
+            } else if (canvas.msToBlob) {
+                const blob = canvas.msToBlob();
+                callAPIWithImageData(blob);
+            }
+        }
+
+        navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: true
+        }).then(stream => {
+            $('#local-video').prop('src', URL.createObjectURL(stream));
+            setTimeout(() => {
+                drawStillImage().then(() => {
+                    callCognitiveAPI();
+                });
+            }, 2000);
+            setInterval(() => {
+                drawStillImage().then(() => {
+                    callCognitiveAPI();
+                });
+            }, 5000);
+        });
+    </script>
+
+</body>
+
+</html>
